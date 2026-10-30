@@ -1,12 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { WorkerCard } from "@/components/workers/WorkerCard";
 import { FilterPanel, type Filters } from "@/components/workers/FilterPanel";
 import type { Worker } from "@/types";
 
+// useSearchParams() opts the route into client-side rendering, so Next.js
+// requires it to sit under a Suspense boundary or the production build fails.
 export default function WorkersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="pt-28 md:pt-32 pb-24 container-content">
+          <p className="text-sm text-graphite-light">Loading professionals…</p>
+        </div>
+      }
+    >
+      <WorkersContent />
+    </Suspense>
+  );
+}
+
+function WorkersContent() {
   const searchParams = useSearchParams();
 
   const [filters, setFilters] = useState<Filters>({
