@@ -44,7 +44,7 @@ export default function AboutPage() {
       <div id="verification" className="container-content mt-24 scroll-mt-24">
         <p className="eyebrow">Our Process</p>
         <h2 className="mt-4 font-display text-3xl md:text-4xl max-w-lg">
-          What "verified" actually means on MEUN.
+          What &ldquo;verified&rdquo; actually means on MEUN.
         </h2>
 
         <ol className="mt-12 grid sm:grid-cols-2 gap-x-10 gap-y-10">

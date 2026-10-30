@@ -48,9 +48,28 @@ export async function signRefreshToken(sub: string, tokenId: string) {
     .sign(getSecret("refresh"));
 }
 
-export async function verifyAccessToken(token: string) {
+const USER_ROLES: readonly UserRole[] = ["customer", "worker", "admin"];
+
+export async function verifyAccessToken(
+  token: string
+): Promise<AccessTokenPayload & { iat: number; exp: number }> {
   const { payload } = await jwtVerify(token, getSecret("access"));
-  return payload as AccessTokenPayload & { sub: string; iat: number; exp: number };
+  const { sub, role, email, iat, exp } = payload;
+
+  // jwtVerify only guarantees the signature and standard claims; validate the
+  // custom claims at runtime instead of trusting a type assertion.
+  if (
+    typeof sub !== "string" ||
+    typeof email !== "string" ||
+    typeof role !== "string" ||
+    !USER_ROLES.includes(role as UserRole) ||
+    typeof iat !== "number" ||
+    typeof exp !== "number"
+  ) {
+    throw new Error("Invalid access token payload");
+  }
+
+  return { sub, role: role as UserRole, email, iat, exp };
 }
 
 export async function verifyRefreshToken(token: string) {
