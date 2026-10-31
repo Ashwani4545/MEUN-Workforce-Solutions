@@ -65,7 +65,7 @@ Visit `http://localhost:3000`. Sample worker data is already seeded in
 
 ## Deploying
 
-This is a standard Next.js app — deploy to Vercel, Render, Railway, or any
+This is a standard Next.js app — deploy to Render, Railway, or any
 Node 18+ host:
 
 ```bash
@@ -81,9 +81,8 @@ Before going live:
    need to change anywhere else.
 3. Replace `data/workers.json` with real, verified worker records.
 4. Add a payment gateway before accepting real bookings.
-5. If deploying behind Vercel, note `argon2` is a native module — Vercel's
-   Node runtime supports it, but confirm your target platform does before
-   relying on it; `bcryptjs` is a drop-in pure-JS fallback if not.
+5. `argon2` is a native module — confirm your target platform supports it
+   before relying on it; `bcryptjs` is a drop-in pure-JS fallback if not.
 
 ## Project structure
 
