@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
-  const limit = rateLimit(clientKeyFromRequest(req, `booking:${userId}`), 10, 60 * 10);
+  const limit = await rateLimit(clientKeyFromRequest(req, `booking:${userId}`), 10, 60 * 10);
   if (!limit.allowed) {
     return NextResponse.json({ error: "Too many booking attempts. Please slow down." }, { status: 429 });
   }

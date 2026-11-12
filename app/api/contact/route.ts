@@ -5,7 +5,7 @@ import { saveContactSubmission } from "@/lib/db";
 import { rateLimit, clientKeyFromRequest } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
-  const limit = rateLimit(clientKeyFromRequest(req, "contact"), 5, 60 * 10);
+  const limit = await rateLimit(clientKeyFromRequest(req, "contact"), 5, 60 * 10);
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many submissions. Please try again later." },
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
         }),
       });
     } catch {
-      // Submission is already saved to disk; email delivery is best-effort.
+      // Submission is already saved to the database; email delivery is best-effort.
     }
   }
 

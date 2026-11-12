@@ -18,7 +18,7 @@ export async function POST() {
     // after the legitimate client already rotated), consumeRefreshToken
     // will return null and the session is rejected — a signal that would,
     // in a full deployment, also revoke the whole token family.
-    const userId = consumeRefreshToken(payload.tid);
+    const userId = await consumeRefreshToken(payload.tid);
     if (!userId || userId !== payload.sub) {
       clearSessionCookies();
       return NextResponse.json({ error: "Session expired" }, { status: 401 });
@@ -37,7 +37,7 @@ export async function POST() {
     });
     const newTokenId = nanoid(21);
     const newRefreshToken = await signRefreshToken(user.id, newTokenId);
-    putRefreshToken(newTokenId, user.id, 30 * 24 * 60 * 60);
+    await putRefreshToken(newTokenId, user.id, 30 * 24 * 60 * 60);
     setSessionCookies(accessToken, newRefreshToken);
 
     return NextResponse.json({ ok: true });
