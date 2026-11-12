@@ -1,35 +1,46 @@
+import { query } from "@/lib/pg";
+
 /**
- * Rotating refresh-token store.
+ * Rotating refresh-token store, backed by Postgres so every server instance
+ * sees the same tokens (the previous in-memory Map logged users out whenever a
+ * request landed on a different instance or the process restarted).
  *
- * Shaped exactly like a Redis-backed store (set with TTL, get, delete) so
- * that swapping this for real Redis is a matter of replacing the three
- * functions below with `redis.set(key, value, "EX", ttl)`, `redis.get`,
- * and `redis.del` — nothing else in the auth flow changes.
- *
- * In-memory only: rotated tokens are lost on server restart, which simply
- * means affected users need to log in again. Acceptable for a single-
- * instance deployment; replace with Redis before scaling horizontally.
+ * Refresh tokens are single-use: `consumeRefreshToken` deletes the row and
+ * returns the owner in one atomic statement, so a replayed token can never be
+ * redeemed twice, even by two simultaneous requests.
  */
 
-interface Entry {
-  userId: string;
-  expiresAt: number;
+export async function putRefreshToken(
+  tokenId: string,
+  userId: string,
+  ttlSeconds: number
+): Promise<void> {
+  await query(
+    `INSERT INTO refresh_tokens (token_id, user_id, expires_at)
+     VALUES ($1, $2, now() + ($3 * interval '1 second'))`,
+    [tokenId, userId, ttlSeconds]
+  );
+
+  // Housekeeping: purge expired rows now and then so the table stays small.
+  if (Math.random() < 0.02) {
+    await query("DELETE FROM refresh_tokens WHERE expires_at < now()");
+  }
 }
 
-const store = new Map<string, Entry>();
-
-export function putRefreshToken(tokenId: string, userId: string, ttlSeconds: number) {
-  store.set(tokenId, { userId, expiresAt: Date.now() + ttlSeconds * 1000 });
+export async function consumeRefreshToken(
+  tokenId: string
+): Promise<string | null> {
+  const { rows } = await query<{ user_id: string; valid: boolean }>(
+    `DELETE FROM refresh_tokens
+     WHERE token_id = $1
+     RETURNING user_id, (expires_at > now()) AS valid`,
+    [tokenId]
+  );
+  const row = rows[0];
+  if (!row || !row.valid) return null;
+  return row.user_id;
 }
 
-export function consumeRefreshToken(tokenId: string): string | null {
-  const entry = store.get(tokenId);
-  store.delete(tokenId); // rotation: a refresh token is single-use
-  if (!entry) return null;
-  if (entry.expiresAt < Date.now()) return null;
-  return entry.userId;
-}
-
-export function revokeRefreshToken(tokenId: string) {
-  store.delete(tokenId);
+export async function revokeRefreshToken(tokenId: string): Promise<void> {
+  await query("DELETE FROM refresh_tokens WHERE token_id = $1", [tokenId]);
 }

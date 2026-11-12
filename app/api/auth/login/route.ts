@@ -12,7 +12,7 @@ const GENERIC_ERROR = "Incorrect email or password.";
 
 export async function POST(req: Request) {
   // Tight limit: login is the highest-value target for credential stuffing.
-  const limit = rateLimit(clientKeyFromRequest(req, "login"), 8, 60 * 10);
+  const limit = await rateLimit(clientKeyFromRequest(req, "login"), 8, 60 * 10);
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many attempts. Please try again in a few minutes." },
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   });
   const tokenId = nanoid(21);
   const refreshToken = await signRefreshToken(user.id, tokenId);
-  putRefreshToken(tokenId, user.id, 30 * 24 * 60 * 60);
+  await putRefreshToken(tokenId, user.id, 30 * 24 * 60 * 60);
   setSessionCookies(accessToken, refreshToken);
 
   const { passwordHash: _omit, ...publicUser } = user;

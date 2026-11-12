@@ -1,21 +1,13 @@
+import { query } from "@/lib/pg";
+
 /**
- * Fixed-window rate limiter.
+ * Fixed-window rate limiter, backed by Postgres so the limit is shared by all
+ * server instances (an in-memory counter lets an attacker multiply their
+ * allowance by however many instances are running).
  *
- * In production behind Kong, rate limiting on `/api/auth/*` and other
- * public endpoints should happen at the gateway (already configured per
- * the platform's infra) so abusive traffic is dropped before it reaches
- * application servers at all. This in-process limiter is the
- * application-level backstop for this standalone deployment, and mirrors
- * the same key/limit/window shape Kong's rate-limiting plugin uses so the
- * two are easy to keep in sync.
+ * One atomic upsert both counts the request and starts a new window when the
+ * old one has expired, so concurrent requests can't race each other.
  */
-
-interface Bucket {
-  count: number;
-  resetAt: number;
-}
-
-const buckets = new Map<string, Bucket>();
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -23,29 +15,35 @@ export interface RateLimitResult {
   resetAt: number;
 }
 
-export function rateLimit(
+export async function rateLimit(
   key: string,
   limit: number,
   windowSeconds: number
-): RateLimitResult {
-  const now = Date.now();
-  const existing = buckets.get(key);
+): Promise<RateLimitResult> {
+  const { rows } = await query<{ count: number; reset_ms: string }>(
+    `INSERT INTO rate_limits (key, count, reset_at)
+     VALUES ($1, 1, now() + ($2 * interval '1 second'))
+     ON CONFLICT (key) DO UPDATE SET
+       count    = CASE WHEN rate_limits.reset_at < now() THEN 1 ELSE rate_limits.count + 1 END,
+       reset_at = CASE WHEN rate_limits.reset_at < now()
+                       THEN now() + ($2 * interval '1 second')
+                       ELSE rate_limits.reset_at END
+     RETURNING count, (extract(epoch FROM reset_at) * 1000)::bigint AS reset_ms`,
+    [key, windowSeconds]
+  );
 
-  if (!existing || existing.resetAt < now) {
-    const resetAt = now + windowSeconds * 1000;
-    buckets.set(key, { count: 1, resetAt });
-    return { allowed: true, remaining: limit - 1, resetAt };
+  const { count, reset_ms } = rows[0];
+  const resetAt = Number(reset_ms);
+
+  // Housekeeping: purge long-expired windows now and then.
+  if (Math.random() < 0.01) {
+    await query("DELETE FROM rate_limits WHERE reset_at < now() - interval '1 hour'");
   }
 
-  if (existing.count >= limit) {
-    return { allowed: false, remaining: 0, resetAt: existing.resetAt };
-  }
-
-  existing.count += 1;
   return {
-    allowed: true,
-    remaining: limit - existing.count,
-    resetAt: existing.resetAt,
+    allowed: count <= limit,
+    remaining: Math.max(0, limit - count),
+    resetAt,
   };
 }
 

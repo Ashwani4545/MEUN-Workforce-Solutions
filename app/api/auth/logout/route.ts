@@ -8,7 +8,7 @@ export async function POST() {
   if (refreshToken) {
     try {
       const payload = await verifyRefreshToken(refreshToken);
-      revokeRefreshToken(payload.tid);
+      await revokeRefreshToken(payload.tid);
     } catch {
       // Token already invalid/expired — nothing to revoke.
     }

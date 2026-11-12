@@ -26,7 +26,7 @@ MEUN focuses on three core principles:
 - **Convenience:** Make service discovery, pricing, and booking easier.
 - **Accessibility:** Create a straightforward experience for customers, workers, and businesses.
 
-The application is built using Next.js 14, TypeScript, and Tailwind CSS, with server-side API routes and a standalone local data layer.
+The application is built using Next.js 14, TypeScript, and Tailwind CSS, with server-side API routes and a PostgreSQL data layer.
 
 ## 2. Key Features
 
@@ -82,7 +82,7 @@ The booking experience follows a multi-step process:
 - Worker application submission.
 - Honeypot-based spam protection.
 - Server-side input validation.
-- Local persistence of contact submissions.
+- Persistence of contact submissions in PostgreSQL.
 - Optional email notification through Resend.
 
 ## 3. Technology Stack
@@ -97,7 +97,7 @@ The booking experience follows a multi-step process:
 | Zod | Input and schema validation |
 | Argon2id | Password hashing |
 | JWT | Access and refresh authentication |
-| JSON data files | Standalone local persistence |
+| PostgreSQL (`pg`) | Data, refresh tokens and rate limits |
 | Resend | Optional email delivery |
 | Node.js | Application runtime |
 
@@ -128,7 +128,7 @@ MEUN follows a modular Next.js application structure.
                           |
                        Data Layer
                           |
-                    Local JSON Files
+                      PostgreSQL
 ```
 
 ### Architectural Components
@@ -167,7 +167,7 @@ Security is incorporated into the application through multiple layers.
 - Password hashing: Argon2id.
 - Cookie configuration: HttpOnly and SameSite=Strict.
 
-**Security deployment note:** Some infrastructure components currently use local or in-process implementations. These are suitable for a standalone development setup but must be replaced or upgraded before operating a horizontally scaled production service.
+**Multi-instance safe:** refresh tokens and rate-limit counters live in PostgreSQL, so every server instance shares them. Refresh tokens are single-use (deleted atomically when redeemed), and duplicate sign-ups and duplicate bookings are prevented by database constraints.
 
 ## 6. Local Development Setup
 
@@ -214,12 +214,25 @@ Configure the generated values in `.env.local`:
 JWT_ACCESS_SECRET=your_generated_access_secret
 JWT_REFRESH_SECRET=your_generated_refresh_secret
 
+DATABASE_URL=postgres://user:password@localhost:5432/meun
+# DATABASE_SSL=false   # only for a local database without TLS
+
 RESEND_API_KEY=your_resend_api_key
 ```
 
-The Resend API key is optional for local contact submission persistence, but required for the optional email delivery functionality.
+`DATABASE_URL` is required. Any PostgreSQL works: a free hosted database (Neon, Supabase) or a local install. The Resend API key is optional; contact submissions are always saved to the database, and the key only adds email notifications.
 
 Use the actual variable names from `.env.example` as the authoritative configuration reference.
+
+### Set Up the Database
+
+Create the tables and load the worker catalogue (safe to re-run):
+
+```bash
+npm run db:setup
+```
+
+This runs `npm run db:migrate` (applies `db/schema.sql`) and `npm run seed` (loads `data/workers.json`).
 
 ### Start the Development Server
 
@@ -233,13 +246,9 @@ Open:
 http://localhost:3000
 ```
 
-### Seed Sample Data
+### Worker Data
 
-```bash
-npm run seed
-```
-
-Sample worker records are provided through `data/workers.json`.
+`npm run seed` loads the worker profiles in `data/workers.json` into the database. The supplied file contains **sample profiles only** (invented names, generated avatars). `scripts/generate-sample-workers.mjs` regenerates it. Replace it with real, verified worker records before a public launch.
 
 ## 7. Project Structure
 
@@ -280,18 +289,27 @@ MEUN-Workforce-Solutions/
 │       └── Authentication context
 │
 ├── lib/
-│   ├── db.ts
-│   ├── refreshStore.ts
+│   ├── pg.ts              (shared PostgreSQL connection pool)
+│   ├── db.ts              (users, workers, bookings, contact)
+│   ├── refreshStore.ts    (refresh tokens, PostgreSQL-backed)
+│   ├── rateLimit.ts       (rate limiting, PostgreSQL-backed)
 │   ├── Authentication utilities
 │   ├── Validation
-│   ├── Pricing
-│   └── Rate limiting
+│   └── Pricing
+│
+├── db/
+│   └── schema.sql
+│
+├── scripts/
+│   ├── migrate.mjs
+│   ├── seed.mjs
+│   └── generate-sample-workers.mjs
 │
 ├── types/
 │   └── Shared application types
 │
 ├── data/
-│   └── workers.json
+│   └── workers.json       (worker catalogue loaded by `npm run seed`)
 │
 ├── public/
 │   └── Static assets
@@ -303,19 +321,17 @@ MEUN-Workforce-Solutions/
 └── README.md
 ```
 
-Runtime JSON files other than the supplied worker seed data are created as needed and are intended to be excluded from Git.
+All application data is stored in PostgreSQL; the only data file in the repository is the worker catalogue, `data/workers.json`.
 
 ## 8. Current Implementation and Infrastructure Status
 
-MEUN is structured as a standalone application, with several infrastructure services represented by local implementations.
-
-| Component | Current Implementation | Production Upgrade |
+| Component | Current Implementation | Before a public launch |
 |---|---|---|
-| Database | Local JSON files | PostgreSQL |
-| Refresh token storage | In-memory store | Redis |
-| Rate limiting | In-process | Shared distributed rate limiter or API gateway |
+| Database | PostgreSQL | Managed database with backups |
+| Refresh token storage | PostgreSQL (shared by all instances) | None needed at current scale |
+| Rate limiting | PostgreSQL (shared by all instances) | Optionally add a gateway or WAF in front |
+| Worker data | Sample profiles | Real, verified worker records |
 | Worker images | Generated initials avatars | Licensed worker photography |
-| Contact persistence | Local JSON storage | Persistent database |
 | Email delivery | Optional Resend integration | Production email configuration |
 | Payments | Not integrated | Razorpay or Stripe |
 | SMS/OTP | In-app demonstration flow | SMS/OTP provider integration |
@@ -324,9 +340,6 @@ MEUN is structured as a standalone application, with several infrastructure serv
 
 The following capabilities should not be considered production-ready integrations:
 
-- No live PostgreSQL database.
-- No Redis-backed refresh token store.
-- No distributed rate-limiting infrastructure.
 - No integrated payment collection.
 - No actual SMS-based OTP delivery.
 - Sample worker records are not proof of real-world worker verification.
@@ -395,9 +408,7 @@ Potential hosting platforms include:
 - [ ] Configure production environment variables.
 - [ ] Generate strong, unique JWT secrets.
 - [ ] Configure HTTPS and domain settings.
-- [ ] Replace local JSON persistence with PostgreSQL.
-- [ ] Replace in-memory refresh token storage with Redis.
-- [ ] Upgrade rate limiting for multi-instance deployment.
+- [ ] Create a PostgreSQL database, set `DATABASE_URL`, and run `npm run db:setup`.
 - [ ] Configure production email delivery.
 - [ ] Integrate a payment gateway before accepting paid bookings.
 - [ ] Integrate an actual SMS/OTP provider.
@@ -412,8 +423,7 @@ The following items represent potential future development, not claims that thes
 
 ### Platform Expansion
 
-- [ ] PostgreSQL integration.
-- [ ] Redis-backed session and refresh token management.
+- [x] PostgreSQL integration (data, sessions and rate limiting).
 - [ ] Real OTP authentication.
 - [ ] Razorpay payment integration.
 - [ ] Customer dashboard.
