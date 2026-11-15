@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { marketplaceEnabled } from "@/lib/features";
 import { getAccessTokenFromCookies } from "@/lib/session";
 import { verifyAccessToken } from "@/lib/jwt";
 import { getWorkerById } from "@/lib/db";
 import { calculatePrice } from "@/lib/pricing";
 import { z } from "zod";
+
+// The marketplace switch is read per request; never freeze it at build time.
+export const dynamic = "force-dynamic";
 
 const previewSchema = z.object({
   workerId: z.string().min(1),
@@ -12,6 +16,9 @@ const previewSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  if (!marketplaceEnabled()) {
+    return NextResponse.json({ error: "Not available." }, { status: 404 });
+  }
   const token = getAccessTokenFromCookies();
   if (!token) {
     return NextResponse.json({ error: "Please sign in to continue." }, { status: 401 });

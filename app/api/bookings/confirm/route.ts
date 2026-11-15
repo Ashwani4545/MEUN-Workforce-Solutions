@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { marketplaceEnabled } from "@/lib/features";
 import { nanoid } from "nanoid";
 import { getAccessTokenFromCookies } from "@/lib/session";
 import { verifyAccessToken } from "@/lib/jwt";
@@ -9,11 +10,17 @@ import { calculatePrice } from "@/lib/pricing";
 import { rateLimit, clientKeyFromRequest } from "@/lib/rateLimit";
 import type { Booking } from "@/types";
 
+// The marketplace switch is read per request; never freeze it at build time.
+export const dynamic = "force-dynamic";
+
 function generateOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 export async function POST(req: Request) {
+  if (!marketplaceEnabled()) {
+    return NextResponse.json({ error: "Not available." }, { status: 404 });
+  }
   const token = getAccessTokenFromCookies();
   if (!token) {
     return NextResponse.json({ error: "Please sign in to continue." }, { status: 401 });

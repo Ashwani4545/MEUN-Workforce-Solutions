@@ -2,8 +2,12 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { getWorkerById } from "@/lib/db";
+import { marketplaceEnabled } from "@/lib/features";
 import { VerifiedBadge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
+
+// Evaluated per request so the marketplace switch takes effect without a rebuild.
+export const dynamic = "force-dynamic";
 
 const CATEGORY_LABEL: Record<string, string> = {
   maid: "Maid",
@@ -28,6 +32,11 @@ export async function generateMetadata({
 }: {
   params: { id: string };
 }): Promise<Metadata> {
+  // While the marketplace is off, expose nothing about any worker (not even
+  // a page title that search engines could index).
+  if (!marketplaceEnabled()) {
+    return { title: "Online booking", robots: { index: false, follow: false } };
+  }
   const worker = await getWorkerById(params.id);
   if (!worker) return { title: "Professional not found" };
   return {
@@ -41,6 +50,7 @@ export default async function WorkerProfilePage({
 }: {
   params: { id: string };
 }) {
+  if (!marketplaceEnabled()) notFound();
   const worker = await getWorkerById(params.id);
   if (!worker) notFound();
 
