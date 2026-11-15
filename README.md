@@ -252,6 +252,8 @@ http://localhost:3000
 
 `npm run seed` loads the worker profiles in `data/workers.json` into the database. The supplied file contains **sample profiles only** (invented names, generated avatars). `scripts/generate-sample-workers.mjs` regenerates it. Replace it with real, verified worker records before a public launch.
 
+**Marketplace switch:** because the bundled workers are samples, the worker listing, worker profiles and online booking are **closed by default** (visitors see an "opening soon" page; the contact form, join form, sign-up and login still work). After loading real records with `npm run seed`, set `MARKETPLACE_ENABLED=true` on the host and redeploy to open them.
+
 ## 7. Project Structure
 
 ```text
@@ -411,7 +413,7 @@ Potential hosting platforms include:
 - [ ] Generate strong, unique JWT secrets.
 - [ ] Configure HTTPS and domain settings.
 - [ ] Create a PostgreSQL database and set `DATABASE_URL` on the host (tables are created automatically on the next build).
-- [ ] Load your worker records once with `npm run seed` (see the Worker Data note above).
+- [ ] Load your real worker records with `npm run seed`, then set `MARKETPLACE_ENABLED=true` to open the worker listing and booking (see the Worker Data note above).
 - [ ] Configure production email delivery.
 - [ ] Integrate a payment gateway before accepting paid bookings.
 - [ ] Integrate an actual SMS/OTP provider.

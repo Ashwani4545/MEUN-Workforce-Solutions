@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { marketplaceEnabled } from "@/lib/features";
 import { getWorkers } from "@/lib/db";
 import { workerFilterSchema } from "@/lib/validations";
 
+// The marketplace switch is read per request; never freeze it at build time.
+export const dynamic = "force-dynamic";
+
 export async function GET(req: Request) {
+  if (!marketplaceEnabled()) {
+    return NextResponse.json({ error: "Not available." }, { status: 404 });
+  }
   const { searchParams } = new URL(req.url);
   const parsed = workerFilterSchema.safeParse(
     Object.fromEntries(searchParams.entries())
