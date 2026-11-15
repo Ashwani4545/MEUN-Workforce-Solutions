@@ -234,6 +234,8 @@ npm run db:setup
 
 This runs `npm run db:migrate` (applies `db/schema.sql`) and `npm run seed` (loads `data/workers.json`).
 
+**On deploy you don't need to run `db:migrate` yourself:** `npm run build` applies the schema automatically whenever `DATABASE_URL` is set (and skips it when it isn't). It only creates tables and never touches existing data. Loading workers (`npm run seed`) stays a deliberate, manual step so a deploy can never overwrite your worker records.
+
 ### Start the Development Server
 
 ```bash
@@ -408,7 +410,8 @@ Potential hosting platforms include:
 - [ ] Configure production environment variables.
 - [ ] Generate strong, unique JWT secrets.
 - [ ] Configure HTTPS and domain settings.
-- [ ] Create a PostgreSQL database, set `DATABASE_URL`, and run `npm run db:setup`.
+- [ ] Create a PostgreSQL database and set `DATABASE_URL` on the host (tables are created automatically on the next build).
+- [ ] Load your worker records once with `npm run seed` (see the Worker Data note above).
 - [ ] Configure production email delivery.
 - [ ] Integrate a payment gateway before accepting paid bookings.
 - [ ] Integrate an actual SMS/OTP provider.

@@ -5,7 +5,7 @@
   "description": "MEUN — India's verified domestic workforce platform. Public website.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/migrate.mjs --skip-if-no-db && next build",
     "start": "next start",
     "lint": "next lint",
     "db:migrate": "node scripts/migrate.mjs",
